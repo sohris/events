@@ -8,6 +8,7 @@ use parallel\Runtime;
 use React\EventLoop\Loop;
 use React\EventLoop\LoopInterface;
 use React\EventLoop\TimerInterface;
+use Sohris\Core\Server;
 use Sohris\Core\Utils;
 use Sohris\Event\Utils as EventUtils;
 
@@ -47,6 +48,9 @@ abstract class AbstractEvent implements EventInterface
     {
         $this->loop = Loop::get();
 
+        $bootstrap = Server::getRootDir() . DIRECTORY_SEPARATOR . "bootstrap.php";
+        //$bootstrap = Utils::getAutoload();
+
         $this->configuration = EventUtils::loadAnnotationsOfClass($this);
 
         $annotations = $this->configuration['annotations'];
@@ -70,7 +74,7 @@ abstract class AbstractEvent implements EventInterface
         $this->events->addChannel($this->channel);
         $this->events->setBlocking(false);
 
-        $this->runtime = new Runtime(Utils::getAutoload());
+        $this->runtime = new Runtime($bootstrap);
     }
 
     public function start()
