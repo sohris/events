@@ -1,0 +1,32 @@
+{
+  "name": "rodrigodanieli/events",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Rodrigo Danieli",
+      "email": "rodri.merlucci@gmail.com"
+    }
+  ],
+  "repositories": [
+    {
+      "type": "vcs",
+      "url": "git@github.com:sohris/core.git"
+    },
+    {
+      "type": "vcs",
+      "url": "git@github.com:sohris/thread.git"
+    }
+  ],
+  "require": {
+    "ext-parallel": "*",
+    "sohris/core": "^0.1",
+    "doctrine/annotations": "^1.13",
+    "mtdowling/cron-expression": "^1.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "Sohris\\Event\\": "src/"
+    }
+  }
+}
