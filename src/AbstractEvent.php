@@ -25,6 +25,8 @@ abstract class AbstractEvent implements EventInterface
 
     private $configuration;
 
+    private $control;
+
     private $channel_name = "";
 
     private Channel $channel;

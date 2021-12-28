@@ -40,7 +40,6 @@ class Time
         if($this->type == 'Cron')
         {
             $cron =str_replace("\\" , "/",$args['time']);
-            echo $cron . PHP_EOL;
             $this->time = CronExpression::factory($cron);
         }
 
