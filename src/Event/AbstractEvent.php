@@ -1,6 +1,6 @@
 <?php
 
-namespace Sohris\Event;
+namespace Sohris\Event\Event;
 
 use parallel\Channel;
 use parallel\Events;
@@ -10,9 +10,10 @@ use React\EventLoop\LoopInterface;
 use React\EventLoop\TimerInterface;
 use Sohris\Core\Server;
 use Sohris\Core\Utils;
+use Sohris\Event\Event;
 use Sohris\Event\Utils as EventUtils;
 
-abstract class AbstractEvent implements EventInterface
+abstract class AbstractEvent implements IEvent
 {
 
     public $enable = true;
@@ -40,7 +41,6 @@ abstract class AbstractEvent implements EventInterface
 
     private LoopInterface $loop;
 
-    private $timeoutControl;
 
     private $startRunning = false;
 
@@ -49,8 +49,7 @@ abstract class AbstractEvent implements EventInterface
         $this->loop = Loop::get();
 
         $bootstrap = Server::getRootDir() . DIRECTORY_SEPARATOR . "bootstrap.php";
-        //$bootstrap = Utils::getAutoload();
-
+        
         $this->configuration = EventUtils::loadAnnotationsOfClass($this);
 
         $annotations = $this->configuration['annotations'];

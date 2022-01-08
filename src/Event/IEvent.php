@@ -1,10 +1,10 @@
 <?php
 
-namespace Sohris\Event;
+namespace Sohris\Event\Event;
 
 use React\EventLoop\LoopInterface;
 
-interface EventInterface
+interface IEvent
 {
 
     public static function run();
