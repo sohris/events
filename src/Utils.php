@@ -4,6 +4,8 @@ namespace Sohris\Event;
 
 use Doctrine\Common\Annotations\AnnotationReader;
 use ReflectionClass;
+use Sohris\Core\Server;
+use Sohris\Core\Utils as CoreUtils;
 
 class Utils
 {
@@ -22,7 +24,7 @@ class Utils
     }
 
     public static function loadAnnotationsOfClassMethods(ReflectionClass $class)
-    {   
+    {
         $reader = new AnnotationReader();
 
         $methods = $class->getMethods();
@@ -32,5 +34,18 @@ class Utils
             array_push($methods_configured, ["method" => $method, "annotation" => $reader->getMethodAnnotations($method)]);
         }
         return $methods_configured;
+    }
+
+
+    public static function getSavedConfigurationEvents(string $event_name)
+    {
+        $file_config = Server::getRootDir() . DIRECTORY_SEPARATOR . Event::EVENT_FILE_NAME;
+        if (!CoreUtils::checkFileExists($file_config)) return false;
+
+        $file_contents = file_get_contents($file_config);
+        $configs = json_decode($file_contents, true);
+        if (empty($configs) || !array_key_exists($event_name, $configs)) return false;
+        
+        return $configs[$event_name];
     }
 }

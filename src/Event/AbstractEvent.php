@@ -23,11 +23,13 @@ abstract class AbstractEvent implements IEvent
      * 
      * @var string 
      */
-    public $status = "waiting";
+    public $status = "never_running";
 
     private $configuration;
 
     private $control;
+
+    private $active = true;
 
     private $channel_name = "";
 
@@ -75,11 +77,40 @@ abstract class AbstractEvent implements IEvent
 
         $this->runtime = new Runtime($bootstrap);
     }
+    
+    public function reconfigure(array $configuration)
+    {
+
+        if(array_key_exists('enable',$configuration)){
+            $a = $this->active;
+            $this->active = $configuration['enable'] == true ? true: false;
+            if(!$a && $configuration['enable'])
+                $this->control->start();
+
+            if($a && !$configuration['enable'])
+                $this->control->stop();
+
+        }
+        if(array_key_exists('control', $configuration))
+        {
+            $this->control->setConfiguration($configuration['control']);
+        }    
+    }
+
+    public function getConfiguration()
+    {
+        return [
+            'enable' => $this->active,
+            'control' => $this->control->getConfiguration()
+        ];
+    }
 
     public function start()
     {
+        if(!$this->active)
+            return;
         $this->control->start();
-        if ($this->startRunning) {
+        if ($this->startRunning ) {
             $this->logger("Start Running");
             $this->threadRunning();
         }
@@ -93,7 +124,7 @@ abstract class AbstractEvent implements IEvent
 
     private function threadRunning()
     {
-        if ($this->status != "waiting") {
+        if ($this->status != "waiting" && $this->status != "never_running" ) {
             return;
         }
 
