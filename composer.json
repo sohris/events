@@ -2,7 +2,7 @@
   "name": "sohris/events",
   "type": "library",
   "license": "MIT",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "authors": [
     {
       "name": "Rodrigo Danieli",
@@ -29,8 +29,5 @@
     "psr-4": {
       "Sohris\\Event\\": "src/"
     }
-  },
-  "scripts":{
-    "generateEvent" : "php bin/generateEventFile.php"
   }
 }
