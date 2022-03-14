@@ -71,7 +71,6 @@ class Time
 
     public function start()
     {
-        echo "S" . PHP_EOL;
         if ($this->running) {
             return;
         }
@@ -80,13 +79,11 @@ class Time
         } else if ($this->type == "Cron") {
             $this->configureCron();
         }
-        echo "2" . PHP_EOL;
         $this->running = true;
     }
 
     public function stop()
     {
-        echo "St" . PHP_EOL;
         if(!$this->running)
             return;
         if (($this->timer)) {

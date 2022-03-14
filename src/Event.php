@@ -34,11 +34,11 @@ final class Event extends AbstractComponent
     private function loadEvents()
     {
         $this->events = array_map(fn ($event_name) => $this->configureEvent($event_name), Loader::getClassesWithParent("Sohris\Event\Event\AbstractEvent"));
-        self::saveEventFile();
+        //self::saveEventFile();
     }
 
     public function configureEvent($event_name)
-    {
+    {   
         $event = new $event_name;
         $configs = EventUtils::getSavedConfigurationEvents($event_name);
         if ($configs)
@@ -67,7 +67,7 @@ final class Event extends AbstractComponent
             $event->reconfigure($configs);
             self::$events_configuration[$event_name] = $event->getConfiguration();
         }
-        self::saveEventFile();
+        //self::saveEventFile();
     }
 
     public function getEventClass($event_name)
