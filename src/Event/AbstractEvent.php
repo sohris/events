@@ -8,10 +8,12 @@ use parallel\Runtime;
 use React\EventLoop\Loop;
 use React\EventLoop\LoopInterface;
 use React\EventLoop\TimerInterface;
+use Sohris\Core\Logger;
 use Sohris\Core\Server;
 use Sohris\Core\Utils;
 use Sohris\Event\Event;
 use Sohris\Event\Utils as EventUtils;
+use Throwable;
 
 abstract class AbstractEvent implements IEvent
 {
@@ -51,7 +53,7 @@ abstract class AbstractEvent implements IEvent
         $this->loop = Loop::get();
 
         $bootstrap = Server::getRootDir() . DIRECTORY_SEPARATOR . "bootstrap.php";
-        
+
         $this->configuration = EventUtils::loadAnnotationsOfClass($this);
 
         $annotations = $this->configuration['annotations'];
@@ -77,24 +79,22 @@ abstract class AbstractEvent implements IEvent
 
         $this->runtime = new Runtime($bootstrap);
     }
-    
+
     public function reconfigure(array $configuration)
     {
 
-        if(array_key_exists('enable',$configuration)){
+        if (array_key_exists('enable', $configuration)) {
             $a = $this->active;
-            $this->active = $configuration['enable'] == true ? true: false;
-            if(!$a && $configuration['enable'])
+            $this->active = $configuration['enable'] == true ? true : false;
+            if (!$a && $configuration['enable'])
                 $this->control->start();
 
-            if($a && !$configuration['enable'])
+            if ($a && !$configuration['enable'])
                 $this->control->stop();
-
         }
-        if(array_key_exists('control', $configuration))
-        {
+        if (array_key_exists('control', $configuration)) {
             $this->control->setConfiguration($configuration['control']);
-        }    
+        }
     }
 
     public function getConfiguration()
@@ -107,10 +107,10 @@ abstract class AbstractEvent implements IEvent
 
     public function start()
     {
-        if(!$this->active)
+        if (!$this->active)
             return;
         $this->control->start();
-        if ($this->startRunning ) {
+        if ($this->startRunning) {
             $this->logger("Start Running");
             $this->threadRunning();
         }
@@ -124,7 +124,7 @@ abstract class AbstractEvent implements IEvent
 
     private function threadRunning()
     {
-        if ($this->status != "waiting" && $this->status != "never_running" ) {
+        if ($this->status != "waiting" && $this->status != "never_running") {
             return;
         }
 
@@ -133,11 +133,22 @@ abstract class AbstractEvent implements IEvent
 
 
         $this->runtime->run(function ($channel) use ($class, $method) {
+            set_error_handler(function (...$err) {
+                $log = new Logger('Events');
+                $message = "[$err[0]] $err[1] - $err[2] ($err[3])";
+                $log->critical($message);
+            });
             $start = Utils::microtimeFloat();
-            $channel->send(["STATUS" => "RUNNING"]);
-            \call_user_func($class . "::" . $method);
-            $end = Utils::microtimeFloat();
-            $channel->send(["STATUS" => "FINISH", "TIME" => round(($end - $start), 3)]);
+
+            try {
+                $channel->send(["STATUS" => "RUNNING"]);
+                \call_user_func($class . "::" . $method);
+            } catch (Throwable $e) {
+                $channel->send(["STATUS" => "ERROR", "MSG" => $e->getMessage(), "CONTEXT" => array_slice($e->getTrace(), 0, 3)]);
+            } finally {
+                $end = Utils::microtimeFloat();
+                $channel->send(["STATUS" => "FINISH", "TIME" => round(($end - $start), 3)]);
+            }
         }, [$this->channel]);
         $this->timer_check_events = $this->loop->addPeriodicTimer(0.5, fn () => $this->checkEvent());
     }
@@ -156,6 +167,11 @@ abstract class AbstractEvent implements IEvent
                     $this->loop->cancelTimer($this->timer_check_events);
                     $this->status = 'waiting';
                     break;
+                case "ERROR":
+                    $message = $event->value['MSG'];
+                    $context = $event->value['CONTEXT'];
+                    $this->logger($message, $context, true);
+                    break;
                 case "RUNNING":
                     $this->logger("Start event");
                     $this->status = 'running';
@@ -164,10 +180,12 @@ abstract class AbstractEvent implements IEvent
         }
     }
 
-    private function logger($message)
+    private function logger($message, $context = [], $critical = false)
     {
         $m = "[\"" . $this->configuration['class']->getName() . "\"] - $message";
-
-        Event::$logger->debug($m);
+        if ($critical)
+            Event::$logger->critical($m, $context);
+        else
+            Event::$logger->debug($m);
     }
 }
