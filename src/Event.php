@@ -18,74 +18,43 @@ final class Event extends AbstractComponent
 
     public static $logger;
 
+    private $file;
+
     public static $events_configuration = [];
 
     public function __construct()
     {
         self::$logger = new Logger("Events");
+        $this->file = Utils::getConfigFiles('system')['statistics_file_events'];
     }
 
     public function install()
     {
         $this->loadEvents();
         self::$logger->debug(sizeof($this->events) . " events to load!");
+        Loop::addPeriodicTimer(10, fn() => $this->getStats());
+        
     }
 
     private function loadEvents()
     {
-        $this->events = array_map(fn ($event_name) => $this->configureEvent($event_name), Loader::getClassesWithParent("Sohris\Event\Event\AbstractEvent"));
-        //self::saveEventFile();
-    }
-
-    public function configureEvent($event_name)
-    {   
-        $event = new $event_name;
-        $configs = EventUtils::getSavedConfigurationEvents($event_name);
-        if ($configs)
-            $event->reconfigure($configs);
-
-        self::$events_configuration[$event_name] = $event->getConfiguration();
-
-        return $event;
+        $this->events = array_map(fn ($event_name) => new $event_name, Loader::getClassesWithParent("Sohris\Event\Event\EventControl"));
     }
 
     public function start()
     {
         array_map(fn ($event) => $event->start(), $this->events);
-        Loop::addPeriodicTimer(10, fn () => $this->reconfigureEvents());
     }
 
-    public function reconfigureEvents()
+    public function getStats()
     {
-        foreach (self::$events_configuration as $event_name => $config) {
-            $configs = EventUtils::getSavedConfigurationEvents($event_name);
-            if (!$configs) continue;
+        $stats = [];
+        array_walk($this->events, function ($ev) use (&$stats){
+            $ev_stats = $ev->getStats();
+            $ev_stats['event'] = get_class($ev);
+            $stats[] = $ev_stats;
+        });
 
-            $event = $this->getEventClass($event_name);
-            if (!$event) continue;
-
-            $event->reconfigure($configs);
-            self::$events_configuration[$event_name] = $event->getConfiguration();
-        }
-        //self::saveEventFile();
-    }
-
-    public function getEventClass($event_name)
-    {
-        $filtered = array_filter($this->events, fn ($ev) => $ev instanceof $event_name);
-        if (empty($filtered)) {
-            return false;
-        }
-        return array_pop($filtered);
-    }
-
-    public static function saveEventFile()
-    {
-        $file = Server::getRootDir() . DIRECTORY_SEPARATOR . self::EVENT_FILE_NAME;
-
-        if (!Utils::checkFileExists($file)) {
-            touch($file);
-        }
-        file_put_contents($file, json_encode(self::$events_configuration));
+        file_put_contents($this->file, json_encode($stats));
     }
 }

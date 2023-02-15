@@ -2,21 +2,11 @@
   "name": "sohris/events",
   "type": "library",
   "license": "MIT",
-  "version": "0.2.4",
+  "version": "0.3.1",
   "authors": [
     {
       "name": "Rodrigo Danieli",
       "email": "rodri.merlucci@gmail.com"
-    }
-  ],
-  "repositories": [
-    {
-      "type": "vcs",
-      "url": "git@github.com:sohris/core.git"
-    },
-    {
-      "type": "vcs",
-      "url": "git@github.com:sohris/thread.git"
     }
   ],
   "require": {
