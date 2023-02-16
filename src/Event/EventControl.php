@@ -2,14 +2,15 @@
 
 namespace Sohris\Event\Event;
 
+use Cron\CronExpression;
 use Exception;
-use React\EventLoop\Loop;
 use Sohris\Core\Tools\Worker\Worker;
 use Sohris\Core\Utils;
 use Sohris\Event\Utils as EventUtils;
 
 abstract class EventControl
 {
+    const TIME_TYPES = ['Cron', 'Interval'];
 
     private $configuration;
 
@@ -18,6 +19,10 @@ abstract class EventControl
     private $start_running = false;
 
     private $active = true;
+
+    private $frequency = 0;
+
+    private $time_type = '';
 
     private $stats = [
         "time" => 0,
@@ -47,8 +52,11 @@ abstract class EventControl
                 $this->start_running = true;
             }
         }
+        $this->frequency = $this->control->getTime();
+        $this->time_type = $this->control->getType();
         $this->worker = new Worker;
         $this->configureWorker();
+
     }
 
     private function configureWorker()
@@ -60,7 +68,7 @@ abstract class EventControl
             $this->worker->callOnFirst(static fn($emitter) => self::runEvent($emitter, $class_name));
 
         $func = null;
-        switch ($this->control->getType()) {
+        switch ($this->time_type) {
             case "Cron":
                 $func = "callCronFunction";
                 break;
@@ -70,7 +78,7 @@ abstract class EventControl
             default:
         }
 
-        $this->worker->{$func}(static fn($emitter) => self::runEvent($emitter,$class_name), $this->control->getTime());
+        $this->worker->{$func}(static fn($emitter) => self::runEvent($emitter,$class_name), $this->frequency);
 
         $this->worker->callFunction(static function ($emitter) {
             $emitter('update_stats', [
@@ -99,31 +107,6 @@ abstract class EventControl
         ]);
     }
 
-    public function reconfigure(array $configuration)
-    {
-
-        if (array_key_exists('enable', $configuration)) {
-            $a = $this->active;
-            $this->active = $configuration['enable'] == true ? true : false;
-            if (!$a && $configuration['enable'])
-                $this->control->start();
-
-            if ($a && !$configuration['enable'])
-                $this->control->stop();
-        }
-        if (array_key_exists('control', $configuration)) {
-            $this->control->setConfiguration($configuration['control']);
-        }
-    }
-
-    public function getConfiguration()
-    {
-        return [
-            'enable' => $this->active,
-            'control' => $this->control->getConfiguration()
-        ];
-    }
-
     public function start()
     {
         $this->worker->run();
@@ -137,7 +120,11 @@ abstract class EventControl
     public function restart()
     {
         $this->stats['restart'] = time();
-        $this->worker->restart();
+        
+        $this->worker->kill();
+        $this->worker = new Worker;
+        $this->configureWorker();
+        $this->worker->run();
     }
 
     public function getStats()
@@ -154,6 +141,34 @@ abstract class EventControl
             "frequency" => $this->stats['frequency'],
             "last_error" => $this->worker->getLastError()
         ];
+    }
+
+    public function setFrequency($frequency)
+    {
+        switch($this->time_type)
+        {
+            case "Cron":
+                if(!CronExpression::isValidExpression($frequency))
+                    throw new Exception("INVALID_CRON_EXPRESSION");
+                break;
+            case "Interval":
+                if(!is_int($frequency) && !is_float($frequency))
+                    throw new Exception("INVALID_FREQUENCY_FOR_INTERVAL");
+                break;
+        }
+
+        $this->frequency = $frequency;
+
+    }
+
+    public function setTimeType($time_type)
+    {
+
+        if(!in_array($time_type, self::TIME_TYPES))
+            throw new Exception("INVALID_TIME_TYPE");
+        
+        $this->time_type = $time_type;
+
     }
 
     abstract public static function run();

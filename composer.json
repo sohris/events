@@ -2,7 +2,7 @@
   "name": "sohris/events",
   "type": "library",
   "license": "MIT",
-  "version": "0.3.1",
+  "version": "0.3.3",
   "authors": [
     {
       "name": "Rodrigo Danieli",
@@ -11,7 +11,7 @@
   ],
   "require": {
     "ext-parallel": "*",
-    "sohris/core": "^0.2",
+    "sohris/core": "^0.3",
     "doctrine/annotations": "^1.13",
     "mtdowling/cron-expression": "^1.2"
   },

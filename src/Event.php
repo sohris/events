@@ -3,15 +3,12 @@
 namespace Sohris\Event;
 
 use React\EventLoop\Loop;
-use React\EventLoop\LoopInterface;
-use Sohris\Core\Component\AbstractComponent;
+use Sohris\Core\ComponentControl;
 use Sohris\Core\Loader;
 use Sohris\Core\Logger;
-use Sohris\Core\Server;
-use Sohris\Core\Utils;
-use Sohris\Event\Utils as EventUtils;
+use Sohris\Event\Event\EventControl;
 
-final class Event extends AbstractComponent
+final class Event extends ComponentControl
 {
     const EVENT_FILE_NAME = ".event.json";
     private $events = [];
@@ -25,25 +22,27 @@ final class Event extends AbstractComponent
     public function __construct()
     {
         self::$logger = new Logger("Events");
-        $this->file = Utils::getConfigFiles('system')['statistics_file_events'];
+
     }
 
     public function install()
     {
         $this->loadEvents();
-        self::$logger->debug(sizeof($this->events) . " events to load!");
-        Loop::addPeriodicTimer(10, fn() => $this->getStats());
-        
+        self::$logger->debug(sizeof($this->events) . " events to load!");        
     }
 
     private function loadEvents()
     {
-        $this->events = array_map(fn ($event_name) => new $event_name, Loader::getClassesWithParent("Sohris\Event\Event\EventControl"));
+        foreach(Loader::getClassesWithParent("Sohris\Event\Event\EventControl") as $event)
+        {
+            $key = sha1($event);
+            $this->events[$key] = new $event;
+        }
     }
 
     public function start()
     {
-        array_map(fn ($event) => $event->start(), $this->events);
+        array_walk($this->events, fn ($event) => $event->start());
     }
 
     public function getStats()
@@ -54,7 +53,15 @@ final class Event extends AbstractComponent
             $ev_stats['event'] = get_class($ev);
             $stats[] = $ev_stats;
         });
-
-        file_put_contents($this->file, json_encode($stats));
+        return $stats;
     }
+
+    public function getEvent($even_name) : EventControl
+    {   
+        $key = sha1($even_name);
+        if(!array_key_exists($key, $this->events)) return null;
+
+        return $this->events[$key];
+    }
+    
 }
