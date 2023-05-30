@@ -4,6 +4,7 @@ namespace Sohris\Event\Event;
 
 use Cron\CronExpression;
 use Exception;
+use Sohris\Core\Logger;
 use Sohris\Core\Tools\Worker\Worker;
 use Sohris\Core\Utils;
 use Sohris\Event\Utils as EventUtils;
@@ -18,11 +19,10 @@ abstract class EventControl
 
     private $start_running = false;
 
-    private $active = true;
-
     private $frequency = 0;
 
     private $time_type = '';
+    private $logger;
 
     private $stats = [
         "time" => 0,
@@ -30,6 +30,7 @@ abstract class EventControl
         "memory" => 0,
         "start" => 0,
         "restart" => 0,
+        "restart_count" => 0,
         "last_run" => 0,
         "frequency" => 0
     ];
@@ -55,7 +56,9 @@ abstract class EventControl
         $this->frequency = $this->control->getTime();
         $this->time_type = $this->control->getType();
         $this->worker = new Worker;
+        $this->worker->stayAlive();
         $this->configureWorker();
+        $this->logger = new Logger("Events");
 
     }
 
@@ -94,6 +97,11 @@ abstract class EventControl
 
         $this->worker->on("update_stats", function ($response) {
             $this->stats['memory'] = $response['memory'];
+        });
+        $this->worker->on("restart", function ($response) use ($class_name) {
+            $this->stats['restart'] = time();
+            $this->stats['restart_count']++;
+            $this->logger->critical("Restarting $class_name!" , $response);
         });
     }
 
