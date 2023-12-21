@@ -8,6 +8,7 @@ use Sohris\Core\Logger;
 use Sohris\Core\Tools\Worker\Worker;
 use Sohris\Core\Utils;
 use Sohris\Event\Utils as EventUtils;
+use Throwable;
 
 abstract class EventControl
 {
@@ -59,16 +60,15 @@ abstract class EventControl
         $this->worker->stayAlive();
         $this->configureWorker();
         $this->logger = new Logger("Events");
-
     }
 
     private function configureWorker()
     {
         $class_name = get_class($this);
-        $this->worker->callOnFirst(static fn () => \call_user_func($class_name. "::firstRun"));
+        $this->worker->callOnFirst(static fn ($emitter) => self::runEvent($emitter, $class_name, "firstRun"));
 
-        if($this->start_running)
-            $this->worker->callOnFirst(static fn($emitter) => self::runEvent($emitter, $class_name));
+        if ($this->start_running)
+            $this->worker->callOnFirst(static fn ($emitter) => self::runEvent($emitter, $class_name, "run"));
 
         $func = null;
         switch ($this->time_type) {
@@ -81,7 +81,7 @@ abstract class EventControl
             default:
         }
 
-        $this->worker->{$func}(static fn($emitter) => self::runEvent($emitter,$class_name), $this->frequency);
+        $this->worker->{$func}(static fn ($emitter) => self::runEvent($emitter, $class_name, "run"), $this->frequency);
 
         $this->worker->callFunction(static function ($emitter) {
             $emitter('update_stats', [
@@ -89,30 +89,38 @@ abstract class EventControl
             ]);
         }, 60);
 
+
+
         $this->worker->on("run_update", function ($response) {
             $this->stats['last_run'] = $response['last_run'];
             $this->stats['time'] += $response['time'];
-            $this->stats['total_run']+=1;
+            $this->stats['total_run'] += 1;
         });
 
         $this->worker->on("update_stats", function ($response) {
             $this->stats['memory'] = $response['memory'];
         });
+
         $this->worker->on("restart", function ($response) use ($class_name) {
             $this->stats['restart'] = time();
             $this->stats['restart_count']++;
-            $this->logger->critical("Restarting $class_name!" , $response);
+            $this->logger->critical("Restarting $class_name!", $response);
         });
     }
 
-    private static function runEvent($emitter, $class_name)
+    private static function runEvent($emitter, $class_name, $function)
     {
-        $start = Utils::microtimeFloat();
-        \call_user_func($class_name. "::run");
-        $emitter('run_update', [
-            "time" => (Utils::microtimeFloat() - $start),
-            "last_run" => time()
-        ]);
+        try {
+            $start = Utils::microtimeFloat();
+            \call_user_func($class_name . "::" . $function);
+            $emitter('run_update', [
+                "time" => (Utils::microtimeFloat() - $start),
+                "last_run" => time()
+            ]);
+        } catch (Throwable $e) {
+            $logger = new Logger("Events");
+            $logger->critical("[$class_name] - " . $e->getMessage() . " - " . $e->getFile() . " (" . $e->getLine() . ")");
+        }
     }
 
     public function start()
@@ -128,9 +136,10 @@ abstract class EventControl
     public function restart()
     {
         $this->stats['restart'] = time();
-        
+
         $this->worker->kill();
         $this->worker = new Worker;
+        $this->worker->stayAlive();
         $this->configureWorker();
         $this->worker->run();
     }
@@ -143,7 +152,7 @@ abstract class EventControl
             "memory" => $this->stats['memory'],
             "total_time_exec" => $this->stats['time'],
             "total_run" => $this->stats['total_run'],
-            "avg_time" => $this->stats['total_run'] > 0 ?round($this->stats['time'] / $this->stats['total_run'], 3): 0,
+            "avg_time" => $this->stats['total_run'] > 0 ? round($this->stats['time'] / $this->stats['total_run'], 3) : 0,
             "last_run" => $this->stats['last_run'],
             "restart" => $this->stats['restart'],
             "frequency" => $this->stats['frequency'],
@@ -153,30 +162,27 @@ abstract class EventControl
 
     public function setFrequency($frequency)
     {
-        switch($this->time_type)
-        {
+        switch ($this->time_type) {
             case "Cron":
-                if(!CronExpression::isValidExpression($frequency))
+                if (!CronExpression::isValidExpression($frequency))
                     throw new Exception("INVALID_CRON_EXPRESSION");
                 break;
             case "Interval":
-                if(!is_int($frequency) && !is_float($frequency))
+                if (!is_int($frequency) && !is_float($frequency))
                     throw new Exception("INVALID_FREQUENCY_FOR_INTERVAL");
                 break;
         }
 
         $this->frequency = $frequency;
-
     }
 
     public function setTimeType($time_type)
     {
 
-        if(!in_array($time_type, self::TIME_TYPES))
+        if (!in_array($time_type, self::TIME_TYPES))
             throw new Exception("INVALID_TIME_TYPE");
-        
-        $this->time_type = $time_type;
 
+        $this->time_type = $time_type;
     }
 
     abstract public static function run();
