@@ -2,12 +2,15 @@
   "name": "sohris/events",
   "type": "library",
   "license": "MIT",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "authors": [
     {
       "name": "Rodrigo Danieli",
       "email": "rodri.merlucci@gmail.com"
     }
+  ],
+  "bin": [
+    "bin/sohris_event"
   ],
   "require": {
     "ext-parallel": "*",
