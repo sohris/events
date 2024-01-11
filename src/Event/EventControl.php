@@ -46,6 +46,7 @@ abstract class EventControl
 
         $this->configuration = EventUtils::loadAnnotationsOfClass($this);
 
+        $this->stats['start'] = time();
         $annotations = $this->configuration['annotations'];
         foreach ($annotations as $annotation) {
             if (get_class($annotation) == "Sohris\Event\Annotations\Time") {
@@ -89,8 +90,6 @@ abstract class EventControl
             ]);
         }, 60);
 
-
-
         $this->worker->on("run_update", function ($response) {
             $this->stats['last_run'] = $response['last_run'];
             $this->stats['time'] += $response['time'];
@@ -111,13 +110,16 @@ abstract class EventControl
     private static function runEvent($emitter, $class_name, $function)
     {
         try {
+            $emitter('start_event',[]);
             $start = Utils::microtimeFloat();
-            \call_user_func($class_name . "::" . $function);
+            \call_user_func($class_name . "::" . $function );
             $emitter('run_update', [
                 "time" => (Utils::microtimeFloat() - $start),
                 "last_run" => time()
             ]);
+            $emitter('finish_event',[]);
         } catch (Throwable $e) {
+            $emitter('error',['errmsg' => $e->getMessage(), 'errcode' => $e->getCode(), 'trace' => $e->getTrace()]);
             $logger = new Logger("Events");
             $logger->critical("[$class_name] - " . $e->getMessage() . " - " . $e->getFile() . " (" . $e->getLine() . ")");
         }
@@ -125,6 +127,7 @@ abstract class EventControl
 
     public function start()
     {
+        $this->stats['start'] = time();
         $this->worker->run();
     }
 
@@ -183,6 +186,15 @@ abstract class EventControl
             throw new Exception("INVALID_TIME_TYPE");
 
         $this->time_type = $time_type;
+    }
+
+    public function getInfo():array
+    {
+        return [
+            "name" => get_class($this),
+            "interval_type" => $this->control->getType(),
+            "interval_frequency" => $this->control->getTime()
+        ];
     }
 
     abstract public static function run();
