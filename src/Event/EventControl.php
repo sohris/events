@@ -19,6 +19,7 @@ abstract class EventControl
     private $control;
 
     private $start_running = false;
+    private $not_running = false;
 
     private $frequency = 0;
 
@@ -53,6 +54,8 @@ abstract class EventControl
                 $this->control = $annotation;
             } else if (get_class($annotation) == "Sohris\Event\Annotations\StartRunning") {
                 $this->start_running = true;
+            } else if (get_class($annotation) == "Sohris\Event\Annotations\NotRunning") {
+                $this->not_running = true;
             }
         }
         $this->frequency = $this->control->getTime();
@@ -65,6 +68,7 @@ abstract class EventControl
 
     private function configureWorker()
     {
+        if($this->not_running) return;
         $class_name = get_class($this);
         $this->worker->callOnFirst(static fn ($emitter) => self::runEvent($emitter, $class_name, "firstRun"));
 
@@ -110,16 +114,16 @@ abstract class EventControl
     private static function runEvent($emitter, $class_name, $function)
     {
         try {
-            $emitter('start_event',[]);
+            $emitter('start_event', []);
             $start = Utils::microtimeFloat();
-            \call_user_func($class_name . "::" . $function );
+            \call_user_func($class_name . "::" . $function);
             $emitter('run_update', [
                 "time" => (Utils::microtimeFloat() - $start),
                 "last_run" => time()
             ]);
-            $emitter('finish_event',[]);
+            $emitter('finish_event', []);
         } catch (Throwable $e) {
-            $emitter('error',['errmsg' => $e->getMessage(), 'errcode' => $e->getCode(), 'trace' => $e->getTrace()]);
+            $emitter('error', ['errmsg' => $e->getMessage(), 'errcode' => $e->getCode(), 'trace' => $e->getTrace()]);
             $logger = new Logger("Events");
             $logger->critical("[$class_name] - " . $e->getMessage() . " - " . $e->getFile() . " (" . $e->getLine() . ")");
         }
@@ -127,17 +131,20 @@ abstract class EventControl
 
     public function start()
     {
+        if($this->not_running) return;
         $this->stats['start'] = time();
         $this->worker->run();
     }
 
     public function stop()
     {
+        if($this->not_running) return;
         $this->worker->stop();
     }
 
     public function restart()
     {
+        if($this->not_running) return;
         $this->stats['restart'] = time();
 
         $this->worker->kill();
@@ -188,7 +195,7 @@ abstract class EventControl
         $this->time_type = $time_type;
     }
 
-    public function getInfo():array
+    public function getInfo(): array
     {
         return [
             "name" => get_class($this),
