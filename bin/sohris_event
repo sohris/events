@@ -8,7 +8,10 @@ use Symfony\Component\Console\Application;
 
 $application = new Application();
 
-$commands = ['Sohris\Event\Commands\ExecuteEvent'];
+$commands = [
+    'Sohris\Event\Commands\ExecuteEvent',
+    'Sohris\Event\Commands\ExecuteGroup'
+];
 
 foreach ($commands as $command) {
     $application->add(new $command);

@@ -42,7 +42,7 @@ final class Event extends ComponentControl
 
     public function start()
     {
-        array_walk($this->events, fn ($event) => $event->start());
+        array_walk($this->events, fn ($event) => !$event->not_running | $event->start());
     }
 
     public function getStats()
@@ -56,7 +56,7 @@ final class Event extends ComponentControl
         return $stats;
     }
 
-    public function getEvent($even_name) : EventControl
+    public function getEvent($even_name)
     {   
         $key = sha1($even_name);
         if(!array_key_exists($key, $this->events)) return null;
