@@ -2,7 +2,7 @@
   "name": "sohris/events",
   "type": "library",
   "license": "MIT",
-  "version": "0.3.9",
+  "version": "0.4.0",
   "authors": [
     {
       "name": "Rodrigo Danieli",
@@ -14,7 +14,7 @@
   ],
   "require": {
     "ext-parallel": "*",
-    "sohris/core": "^0.3",
+    "sohris/core": "^0.4",
     "doctrine/annotations": "^1.13",
     "mtdowling/cron-expression": "^1.2",
     "symfony/console": "^5.4"
