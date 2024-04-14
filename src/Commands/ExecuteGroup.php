@@ -55,9 +55,9 @@ class ExecuteGroup extends Command
             else
                 unset($ev);
         }
-        self::$logger->info(self::$group_name." - Startup!");
-        self::$logger->info(self::$group_name." -  ".count($events) . " Events Registred");
-        self::$logger->info(self::$group_name." - Mode ". $single_thread === true ? "SingleThread" : "MultiThread");
+        self::$logger->info("Startup!");
+        self::$logger->info(count($events) . " Events Registred");
+        self::$logger->info("Mode " . ($single_thread === true ? "SingleThread" : "MultiThread"));
         
         if ($single_thread === true) {
             $this->singleThread($events);
@@ -71,13 +71,13 @@ class ExecuteGroup extends Command
     private function singleThread(array $evs)
     {
 
-        self::$logger->info(self::$group_name." - Configuring Events");
+        self::$logger->info("Configuring Events");
         foreach ($evs as $ev) {
             $name = get_class($ev);
             $info = $ev->getInfo();
             //First Run            
-            self::$logger->debug(self::$group_name. " - StartUp $name");
-            self::$logger->debug(self::$group_name. " - $name Type $info[interval_type] Config $info[interval_frequency] StartRunning " . $info['start_running'] ? "Yes" : "No");
+            self::$logger->debug("StartUp $name");
+            self::$logger->debug("$name Type $info[interval_type] Config $info[interval_frequency] StartRunning " . ($info['start_running'] ? "Yes" : "No"));
             
             $ev::firstRun();
 
@@ -119,22 +119,22 @@ class ExecuteGroup extends Command
         foreach ($evs as $ev) {
             if (!$ev) continue;
             $start = Utils::microtimeFloat();
-            $ev->on("start_event", fn () => self::$logger->debug(self::$group_name. " - " . get_class($ev) . " - Start!"));
+            $ev->on("start_event", fn () => self::$logger->debug(get_class($ev) . " - Start!"));
             $ev->on("error", fn ($e) => self::$logger->error("Code: $e[errcode] - Message: $e[errmsg] - File: $e[errfile]($e[errline])"));
-            $ev->on("finish_event", fn () => self::$logger->debug(self::$group_name. " - " . get_class($ev) . " - Finish! (".round(Utils::microtimeFloat() - $start, 5)."s)"));
+            $ev->on("finish_event", fn () => self::$logger->debug(get_class($ev) . " - Finish! (".round(Utils::microtimeFloat() - $start, 5)."s)"));
             $ev->start();
         }
     }
 
     private static function executeTask($name)
     {
-        self::$logger->debug(self::$group_name. " - " . get_class($name) . " - Start!");
+        self::$logger->debug(self::$group_name. " - " . $name . " - Start!");
         try {            
             $start = Utils::microtimeFloat();
             \call_user_func($name . "::run");
         } catch (Throwable $e) {
             self::$logger->error("Code: $e[errcode] - Message: $e[errmsg] - File: $e[errfile]($e[errline])");
         }
-        self::$logger->debug(self::$group_name. " - " . get_class($name) . " - Finish! (".round(Utils::microtimeFloat() - $start, 5)."s)");
+        self::$logger->debug(self::$group_name. " - " . $name . " - Finish! (".round(Utils::microtimeFloat() - $start, 5)."s)");
     }
 }
