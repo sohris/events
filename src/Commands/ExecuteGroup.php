@@ -7,31 +7,21 @@ use DateTime;
 use React\EventLoop\Loop;
 use Sohris\Core\Loader;
 use Sohris\Core\Logger;
+use Sohris\Core\Server;
+use Sohris\Core\Utils;
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
-use Symfony\Component\Console\Output\ConsoleSectionOutput;
-use Symfony\Component\Console\Output\Output;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
 class ExecuteGroup extends Command
 {
-    private static $events = [];
-
     private static $configure_cron = [];
 
-    private static $info_section;
-    private static $stats_section;
-    private static $error_section;
-    private static $debug_section;
-
-    private static $debug;
-    private static $log;
+    private static Logger $logger;
     private static $group_name = 'default';
-
 
     protected function configure(): void
     {
@@ -40,8 +30,6 @@ class ExecuteGroup extends Command
             ->setDescription('Execute a group of registred events')
             ->setHelp('This command execute an events that extends the Sohris\Event\Event\EventControl')
             ->addOption('single-thread', 's', NULL, 'Run events in Single Thread')
-            ->addOption('debug', 'd', NULL, 'Run events in Single Thread')
-            ->addOption('log-in-file', 'l', NULL, 'Run events in Single Thread')
             ->addArgument('group', InputArgument::REQUIRED, 'Event Group Name');
     }
 
@@ -51,46 +39,31 @@ class ExecuteGroup extends Command
             throw new \LogicException('This command accepts only an instance of "ConsoleOutputInterface".');
         }
 
+        Server::setOutput($output);
         Loader::loadClasses();
         $group = trim(strtolower($input->getArgument("group")));
         $single_thread = $input->getOption("single-thread");
-        self::$debug = $input->getOption("debug");
-        self::$log = $input->getOption("log-in-file");
-
         self::$group_name = strtoupper($group);
-
         $events = [];
 
-        foreach (Loader::getClassesWithParent("Sohris\Event\Event\EventControl") as $event) {
+        self::$logger = new Logger('EVENT_GROUP_' . self::$group_name);
 
+        foreach (Loader::getClassesWithParent("Sohris\Event\Event\EventControl") as $event) {
             $ev = new $event;
             if ($ev->group === $group)
                 $events[] = $ev;
             else
                 unset($ev);
         }
-
-        self::$info_section = $output->section();
-        self::$stats_section = $output->section();
-        self::$debug_section = $output->section();
-        self::$error_section = $output->section();
-
-        self::$info_section->writeln([
-            "===============Info==============",
-            "Group: " . strtoupper($group),
-            "Size: " . count($events),
-            "Mode: " . $single_thread === true ? "SingleThread" : "MultiThread"
-        ]);
-
+        self::$logger->info(self::$group_name." - Startup!");
+        self::$logger->info(self::$group_name." -  ".count($events) . " Events Registred");
+        self::$logger->info(self::$group_name." - Mode ". $single_thread === true ? "SingleThread" : "MultiThread");
+        
         if ($single_thread === true) {
             $this->singleThread($events);
         } else {
             $this->multiThread($events);
         }
-
-
-
-
         Loop::run();
         return Command::SUCCESS;
     }
@@ -98,21 +71,15 @@ class ExecuteGroup extends Command
     private function singleThread(array $evs)
     {
 
-        self::$stats_section->writeln("Configuration");
-        $progress = new ProgressBar(self::$stats_section);
-        $progress->setMaxSteps(count($evs));
-        $progress->setFormat('%current:' . count($evs) . 's%/%max% [%bar%] %percent:1s%% %elapsed:3s%/%estimated:-3s% %message%');
+        self::$logger->info(self::$group_name." - Configuring Events");
         foreach ($evs as $ev) {
             $name = get_class($ev);
             $info = $ev->getInfo();
-            //First Run
-            $progress->setMessage("StartUp " . $name);
+            //First Run            
+            self::$logger->debug(self::$group_name. " - StartUp $name");
+            self::$logger->debug(self::$group_name. " - $name Type $info[interval_type] Config $info[interval_frequency] StartRunning " . $info['start_running'] ? "Yes" : "No");
+            
             $ev::firstRun();
-
-            //Start Running
-            if ($info['start_running']) {
-                $progress->setMessage("Start Running " . $name);
-            }
 
             //Current Running
             switch ($info['interval_type']) {
@@ -127,7 +94,6 @@ class ExecuteGroup extends Command
                     Loop::addPeriodicTimer($info['interval_frequency'], fn () => self::executeTask($name));
                     break;
             }
-            $progress->advance();
         }
         Loop::addPeriodicTimer(1, function () {
             foreach (self::$configure_cron as $c) {
@@ -148,36 +114,27 @@ class ExecuteGroup extends Command
 
     private function multiThread(array $evs)
     {
+        
+           
         foreach ($evs as $ev) {
             if (!$ev) continue;
-            $ev->on("start_event", fn () => self::log("DEBUG", get_class($ev) . " - start"));
-            $ev->on("error", fn ($e) => self::log("ERROR", "Code: $e[errcode] - Message: $e[errmsg] - File: $e[errfile]($e[errline])"));
-            $ev->on("finish_event", fn () => self::log("DEBUG", get_class($ev) . " - finish"));
+            $start = Utils::microtimeFloat();
+            $ev->on("start_event", fn () => self::$logger->debug(self::$group_name. " - " . get_class($ev) . " - Start!"));
+            $ev->on("error", fn ($e) => self::$logger->error("Code: $e[errcode] - Message: $e[errmsg] - File: $e[errfile]($e[errline])"));
+            $ev->on("finish_event", fn () => self::$logger->debug(self::$group_name. " - " . get_class($ev) . " - Finish! (".round(Utils::microtimeFloat() - $start, 5)."s)"));
             $ev->start();
         }
     }
 
     private static function executeTask($name)
     {
-        self::log("DEBUG", "$name - start");
-        try {
+        self::$logger->debug(self::$group_name. " - " . get_class($name) . " - Start!");
+        try {            
+            $start = Utils::microtimeFloat();
             \call_user_func($name . "::run");
         } catch (Throwable $e) {
-            self::log("ERROR", "Code: " . $e->getCode() . " - Message: " . $e->getMessage() . " - File: " . $e->getFile() . "(" . $e->getLine() . ")");
+            self::$logger->error("Code: $e[errcode] - Message: $e[errmsg] - File: $e[errfile]($e[errline])");
         }
-        self::log("DEBUG", "$name - finish");
-    }
-
-    private static function log($type, $message)
-    {
-        if (self::$debug === true) {
-            $date = date("Y-m-d H:i:s");
-            $type = strtoupper($type);
-            self::$debug_section->write("[$date][$type] $message");
-        }
-        if (self::$log === true) {
-            $log = new Logger("EVENT_GROUP_" . self::$group_name);
-            $log->warning($message);
-        }
+        self::$logger->debug(self::$group_name. " - " . get_class($name) . " - Finish! (".round(Utils::microtimeFloat() - $start, 5)."s)");
     }
 }
