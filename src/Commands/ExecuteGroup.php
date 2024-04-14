@@ -58,7 +58,7 @@ class ExecuteGroup extends Command
         self::$logger->info("Startup!");
         self::$logger->info(count($events) . " Events Registred");
         self::$logger->info("Mode " . ($single_thread === true ? "SingleThread" : "MultiThread"));
-        
+
         if ($single_thread === true) {
             $this->singleThread($events);
         } else {
@@ -78,7 +78,7 @@ class ExecuteGroup extends Command
             //First Run            
             self::$logger->debug("StartUp $name");
             self::$logger->debug("$name Type $info[interval_type] Config $info[interval_frequency] StartRunning " . ($info['start_running'] ? "Yes" : "No"));
-            
+
             $ev::firstRun();
 
             //Current Running
@@ -114,27 +114,26 @@ class ExecuteGroup extends Command
 
     private function multiThread(array $evs)
     {
-        
-           
+
+
         foreach ($evs as $ev) {
             if (!$ev) continue;
-            $start = Utils::microtimeFloat();
             $ev->on("start_event", fn () => self::$logger->debug(get_class($ev) . " - Start!"));
             $ev->on("error", fn ($e) => self::$logger->error("Code: $e[errcode] - Message: $e[errmsg] - File: $e[errfile]($e[errline])"));
-            $ev->on("finish_event", fn () => self::$logger->debug(get_class($ev) . " - Finish! (".round(Utils::microtimeFloat() - $start, 5)."s)"));
+            $ev->on("finish_event", fn () => self::$logger->debug(get_class($ev) . " - Finish!"));
             $ev->start();
         }
     }
 
     private static function executeTask($name)
     {
-        self::$logger->debug(self::$group_name. " - " . $name . " - Start!");
-        try {            
+        self::$logger->debug(self::$group_name . " - " . $name . " - Start!");
+        try {
             $start = Utils::microtimeFloat();
             \call_user_func($name . "::run");
         } catch (Throwable $e) {
-            self::$logger->error("Code: $e[errcode] - Message: $e[errmsg] - File: $e[errfile]($e[errline])");
+            self::$logger->throwable($e);
         }
-        self::$logger->debug(self::$group_name. " - " . $name . " - Finish! (".round(Utils::microtimeFloat() - $start, 5)."s)");
+        self::$logger->debug(self::$group_name . " - " . $name . " - Finish! (" . round(Utils::microtimeFloat() - $start, 5) . "s)");
     }
 }
