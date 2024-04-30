@@ -78,7 +78,7 @@ class ExecuteGroup extends Command
             //First Run            
             self::$logger->debug("StartUp $name");
             self::$logger->debug("$name Type $info[interval_type] Config $info[interval_frequency] StartRunning " . ($info['start_running'] ? "Yes" : "No"));
-
+        
             $ev::firstRun();
 
             //Current Running
@@ -93,6 +93,11 @@ class ExecuteGroup extends Command
                 case "Interval":
                     Loop::addPeriodicTimer($info['interval_frequency'], fn () => self::executeTask($name));
                     break;
+            }
+            if($info['start_running'])
+            {
+                self::$logger->debug("StartRunning $name");
+                self::executeTask($name);
             }
         }
         Loop::addPeriodicTimer(1, function () {
