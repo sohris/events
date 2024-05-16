@@ -17,7 +17,7 @@ abstract class EventControl
     private $configuration;
     private $control;
     private $start_running = false;
-    private $not_running = false;
+    public $not_running = false;
     private $frequency = 0;
     private $time_type = '';
     private $logger;
